@@ -15,6 +15,7 @@ import numpy as np
 from sklearn.preprocessing import normalize
 from sklearn.preprocessing.data import _handle_zeros_in_scale
 from datetime import datetime, timedelta
+import argparse
 
 logging.basicConfig(filename='/usr/src/app/app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
 
@@ -281,21 +282,27 @@ def evaluate(y_pred, data, params, path, note):
     logging.info("Saved results to {}".format(path))
 
 
-binary = False
-t = 0.6
-sim = 0.3
-days = 4
-note = ""
-w = {"hashtag": 0, "text": 0.9, "url": 0.1}
-save_results_to = "results_short.csv"
-model = "SurpriseVertexPartition"
-news_dataset = "data/event2018_news_url_short.tsv"
-tweets_dataset = "data/event2018_ann_url_short.tsv"
-y_pred, data, params = louvain_macro_tfidf(tweets_dataset,news_dataset,"fr",similarity=sim, weights=w,
-                                                   binary=binary,threshold_tweets=t, model=model, days=days)
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('--dataset', required=False, default="event2018")
+    parser.add_argument('--path', required=False, default="")
+    args = vars(parser.parse_args())
 
-evaluate(y_pred, data, params, save_results_to, note)
-tweets_data = data[data.type == "tweets"].reset_index(drop=True)
-tweets_y_pred = tweets_data.pred.tolist()
-params["algo"] = "louvain_macro_tfidf evaluate on tweets"
-evaluate(tweets_y_pred, tweets_data, params, save_results_to, note)
+    binary = False
+    t = 0.6
+    sim = 0.3
+    days = 4
+    note = ""
+    w = {"hashtag": 0, "text": 0.9, "url": 0.1}
+    save_results_to = "{}results_{}.csv".format(args["path"], args["dataset"])
+    model = "SurpriseVertexPartition"
+    news_dataset = "{}data/{}_news.tsv".format(args["path"], args["dataset"])
+    tweets_dataset = "{}data/{}_tweets.tsv".format(args["path"], args["dataset"])
+    y_pred, data, params = louvain_macro_tfidf(tweets_dataset,news_dataset,"fr",similarity=sim, weights=w,
+                                                       binary=binary,threshold_tweets=t, model=model, days=days)
+
+    evaluate(y_pred, data, params, save_results_to, note)
+    tweets_data = data[data.type == "tweets"].reset_index(drop=True)
+    tweets_y_pred = tweets_data.pred.tolist()
+    params["algo"] = params["algo"] + " tweets only"
+    evaluate(tweets_y_pred, tweets_data, params, save_results_to, note)
