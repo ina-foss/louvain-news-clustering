@@ -86,7 +86,7 @@ def louvain_macro_tfidf(tweets_path, news_path, lang, similarity, weights, binar
     tweets, news = compute_events(tweets_path, news_path, lang, binary, threshold_tweets)
     data = pd.concat([tweets, news], ignore_index=True, sort=False)
     logging.info("save data")
-    path = "data/" + (tweets_path + "_" + news_path).replace("data/", "")
+    path = tweets_path.split("data/")[0] + "data/" + (tweets_path + "_" + news_path).replace("data/", "")
     data.to_csv(path, sep="\t", index=False, quoting=csv.QUOTE_ALL)
     args = {"dataset": path, "model": "tfidf_all_tweets", "annotation": "no", "hashtag_split": True,
             "lang": lang, "text+": False, "svd": False, "tfidf_weights": False, "save": False, "binary": False}
