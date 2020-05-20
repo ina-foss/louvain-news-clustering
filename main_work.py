@@ -12,8 +12,8 @@ import itertools
 import csv
 from scipy import sparse
 import numpy as np
-from sklearn.preprocessing import normalize, MinMaxScaler
-from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn.preprocessing import normalize
+from sklearn.preprocessing.data import _handle_zeros_in_scale
 from datetime import datetime, timedelta
 
 logging.basicConfig(filename='/usr/src/app/app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
@@ -31,7 +31,12 @@ def find_hashtag(text):
           hashtags.append(word.strip('&,".—/'))
     if hashtags:
       return hashtags
-    
+
+
+def zero_one_scale(serie):
+    data_range = serie.max()
+    scale = 1 / _handle_zeros_in_scale(data_range)
+    serie *= scale
 
 def compute_events(tweets_path, news_path, lang, binary, threshold_tweets, binary_news=False, threshold_news=0.7):
 
@@ -123,20 +128,6 @@ def louvain_macro_tfidf(tweets_path, news_path, lang, similarity, weights, binar
     # mean_news = sparse.load_npz("/usr/src/app/data/mean_news.npz")
     # mean_tweets = sparse.load_npz("/usr/src/app/data/mean_tweets.npz")
 
-    # sim = cosine_similarity(mean_tweets, mean_news)
-    # sim = sim * np.tri(*sim.shape)
-    # np.save("/data/similarity_matrix.npy", sim)
-
-    # close_events = np.where(sim >= similarity)
-    # g = ig.Graph.TupleList(
-    #     [
-    #         (macro_tweets.iloc[i]["pred"],
-    #          macro_news.iloc[j]["pred"],
-    #          sim[i][j]
-    #          ) for i, j in zip(close_events[0], close_events[1])
-    #     ],
-    #     weights=weights
-    # )
     edges_text = []
     edges_hashtags = []
     edges_urls = []
@@ -190,8 +181,10 @@ def louvain_macro_tfidf(tweets_path, news_path, lang, similarity, weights, binar
             edges_urls.extend(batch[["pred_tweets", "pred_news", "sum"]].values.tolist())
 
     edges_hashtags = pd.DataFrame(edges_hashtags, columns=["pred_tweets", "pred_news", "weight"])
+    zero_one_scale(edges_hashtags["weight"])
     edges_hashtags["weight"] *= weights["hashtag"]
     edges_urls = pd.DataFrame(edges_urls, columns=["pred_tweets", "pred_news", "weight"])
+    zero_one_scale(edges_urls["weight"])
     edges_urls["weight"] *= weights["url"]
     edges_text = pd.DataFrame(edges_text, columns=["pred_tweets", "pred_news", "weight"])
     edges_text["weight"] *= weights["text"]
@@ -293,7 +286,7 @@ t = 0.6
 sim = 0.3
 days = 4
 note = ""
-w = {"hashtag": 0, "text": 10, "url": 0.5}
+w = {"hashtag": 0, "text": 0.9, "url": 0.1}
 save_results_to = "results_short.csv"
 model = "SurpriseVertexPartition"
 news_dataset = "data/event2018_news_url_short.tsv"
