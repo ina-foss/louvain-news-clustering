@@ -288,21 +288,37 @@ if __name__ == '__main__':
     parser.add_argument('--path', required=False, default="")
     args = vars(parser.parse_args())
 
-    binary = False
-    t = 0.6
-    sim = 0.3
-    days = 4
-    note = ""
-    w = {"hashtag": 0, "text": 0.9, "url": 0.1}
     save_results_to = "{}results_{}.csv".format(args["path"], args["dataset"])
     model = "SurpriseVertexPartition"
+    note = ""
     news_dataset = "{}data/{}_news.tsv".format(args["path"], args["dataset"])
     tweets_dataset = "{}data/{}_tweets.tsv".format(args["path"], args["dataset"])
-    y_pred, data, params = louvain_macro_tfidf(tweets_dataset,news_dataset,"fr",similarity=sim, weights=w,
-                                                       binary=binary,threshold_tweets=t, model=model, days=days)
 
-    evaluate(y_pred, data, params, save_results_to, note)
-    tweets_data = data[data.type == "tweets"].reset_index(drop=True)
-    tweets_y_pred = tweets_data.pred.tolist()
-    params["algo"] = params["algo"] + " tweets only"
-    evaluate(tweets_y_pred, tweets_data, params, save_results_to, note)
+    binary = False
+    for t in [0.6, 0.7]:
+        for sim in [0.3, 0.4, 0.5, 0.6, 0.7]:
+            for days in [1, 2, 3, 4, 5]:
+                for w in [
+
+                    {"hashtag": 0, "text": 1, "url": 0},
+                    {"hashtag": 1, "text": 0, "url": 0},
+                    {"hashtag": 0, "text": 0, "url": 1},
+                    {"hashtag": 0, "text": 0.9, "url": 0.1},
+                    {"hashtag": 0, "text": 0.8, "url": 0.2},
+                    {"hashtag": 0.1, "text": 0.8, "url": 0.1},
+                    {"hashtag": 0.2, "text": 0.8, "url": 0},
+                    {"hashtag": 0, "text": 0.7, "url": 0.3},
+                    {"hashtag": 0.1, "text": 0.7, "url": 0.2},
+                    {"hashtag": 0, "text": 0.6, "url": 0.4},
+                    {"hashtag": 0.1, "text": 0.6, "url": 0.3},
+                    {"hashtag": 0.2, "text": 0.6, "url": 0.2}
+                ]:
+
+                    y_pred, data, params = louvain_macro_tfidf(tweets_dataset,news_dataset,"fr",similarity=sim, weights=w,
+                                                                       binary=binary,threshold_tweets=t, model=model, days=days)
+
+                    evaluate(y_pred, data, params, save_results_to, note)
+                    tweets_data = data[data.type == "tweets"].reset_index(drop=True)
+                    tweets_y_pred = tweets_data.pred.tolist()
+                    params["algo"] = params["algo"] + " tweets only"
+                    evaluate(tweets_y_pred, tweets_data, params, save_results_to, note)
