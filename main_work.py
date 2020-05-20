@@ -31,27 +31,7 @@ def find_hashtag(text):
           hashtags.append(word.strip('&,".—/'))
     if hashtags:
       return hashtags
-
-
-def add_vertices(g, data, vertices_id, column):
-    """
-    Add all lines in data as new vertices in graph g.
-    Compute vertices_id the dictionary mapping document id to vertex id
-    :param ig.Graph g: the graph where vertices will be added
-    :param pd.DataFrame data: a dataframe with "id" in columns
-    :param dict vertices_id: dictionary mapping document id to vertex id
-    :return: g, vertices_id, inversed_vertices
-    """
-    g.add_vertices(data[column].nunique())
-    if vertices_id == {}:
-        iter = 0
-    else:
-        iter = max(vertices_id.values())
-    for i in sorted(data[column].unique().tolist()):
-        vertices_id[i] = iter
-        iter += 1
-    return g, vertices_id
-
+    
 
 def compute_events(tweets_path, news_path, lang, binary, threshold_tweets, binary_news=False, threshold_news=0.7):
 
@@ -87,7 +67,7 @@ def louvain_macro_tfidf(tweets_path, news_path, lang, similarity, weights, binar
                         threshold_tweets=0.7, model="ModularityVertexPartition", days=1):
     """
     Apply Louvain algorithm on graph of events (an event consists in all documents in the same
-    fsd clusters). 
+    fsd clusters).
     :param str tweets_path: path to the tweets dataset in format "id"    "label"   "created_at"    "text"    "url"
     "pred" is optional if fsd clustering is already done
     :param str news_path: path to the news dataset in format "id"    "label"    "created_at"    "text"    "url"
