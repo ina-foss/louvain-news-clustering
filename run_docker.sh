@@ -1,0 +1,4 @@
+docker run -d --name news_tweets -v /rex/local/bmtweet/news_twitter/:/usr/src/app docker-ina.rech.ina.fr/bmazoyer/igraph python /usr/src/app/main_work.py --path /usr/src/app/ --dataset event2018_short_0_
+docker run -d --name news_tweets -v /rex/local/bmtweet/news_twitter/:/usr/src/app docker-ina.rech.ina.fr/bmazoyer/igraph python /usr/src/app/main_work.py --path /usr/src/app/ --dataset event2018_short_1_
+docker run -d --name news_tweets -v /rex/local/bmtweet/news_twitter/:/usr/src/app docker-ina.rech.ina.fr/bmazoyer/igraph python /usr/src/app/main_work.py --path /usr/src/app/ --dataset event2018_short_2_
+docker run -d --name news_tweets -v /rex/local/bmtweet/news_twitter/:/usr/src/app docker-ina.rech.ina.fr/bmazoyer/igraph python /usr/src/app/main_work.py --path /usr/src/app/ --dataset event2018_short_3_
