@@ -1,0 +1,1 @@
+docker build --build-arg UID=1548 --build-arg USERNAME=bmazoyer --tag docker-ina.rech.ina.fr/bmazoyer/igraph .
