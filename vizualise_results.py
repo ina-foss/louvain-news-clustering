@@ -4,11 +4,6 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pylab as plt
 
-# uniform_data = np.random.rand(10, 12)
-# ax = sns.heatmap(uniform_data, linewidth=0.5)
-# plt.show()
-
-
 def visualize(path, count):
     results = {}
     time = ["Jul 16 - Jul 22", "Jul 22 - Jul 27", "Jul 27 - Aug 1", "Aug 1 - Aug 6"]
@@ -23,7 +18,7 @@ def visualize(path, count):
         for i in range(count):
             res = results[i][(results[i].algo == algo) & (results[i].similarity == 0.3)]
             m[i][i] = res.f1.max()
-            p = res[res.f1 == m[i][i]].sort_values("days").iloc[0]
+            p = res[res.f1 == m[i][i]].sort_values("days").tail(1).iloc[0]
             params.append("\n".join([
                 label + ":" + str(p[k]) for label, k in zip(
                     ["txt", "url", "htag", "days"],
@@ -39,15 +34,22 @@ def visualize(path, count):
                                         & (other_res.weights_hashtag == p["weights_hashtag"])
                     ].iloc[0].f1
 
-        ax = sns.heatmap(m, linewidth=0.5, annot=True, vmax=0.92, vmin=0.7, cmap="Blues",
-                         xticklabels=params, yticklabels=time)
+        if algo == "louvain_macro_tfidf":
+            ax = sns.heatmap(m, linewidth=0.5, annot=True, vmax=0.92, vmin=0.7, cmap="Blues",
+                             xticklabels=params, yticklabels=time, square=True, fmt='.2f')
 
-        plt.savefig("/".join(path.split("/")[0:-1]) + "/figures/{}".format(algo), bbox_inches='tight')
-        plt.show()
-        plt.clf()
+            plt.savefig("/".join(path.split("/")[0:-1]) + "/figures/{}".format(algo), bbox_inches='tight')
+            plt.show()
+            plt.clf()
 
-    ax = sns.heatmap(n, linewidth=0.5,annot=True, vmax=0.92, vmin=0.7, cmap="Blues")
-
+    plt.figure(figsize=(7.5, 4.8))
+    ax1 = plt.subplot2grid((1, 5), (0, 0), colspan=1, rowspan=1)
+    ax2 = plt.subplot2grid((1, 5), (0, 1), colspan=4, rowspan=1)
+    sns.heatmap(n, linewidth=0.5,annot=True, vmax=0.92, vmin=0.7, cmap="Blues", square=False, cbar=False,
+                xticklabels= False, yticklabels=time, fmt='.2f', ax=ax1)
+    sns.heatmap(m, linewidth=0.5, annot=True, vmax=0.92, vmin=0.7, cmap="Blues",
+                xticklabels=params, yticklabels=False, square=False, fmt='.2f', ax=ax2)
+    plt.savefig("/".join(path.split("/")[0:-1]) + "/figures/{}".format(algo), bbox_inches='tight')
     plt.show()
 
 
