@@ -11,25 +11,24 @@ import matplotlib.pylab as plt
 
 def visualize(path, count):
     results = {}
-    params = []
     time = ["Jul 16 - Jul 22", "Jul 22 - Jul 27", "Jul 27 - Aug 1", "Aug 1 - Aug 6"]
+    m = np.zeros((count, count))
+    n = np.zeros((count, 1))
     for i in range(count):
         results[i] = pd.read_csv(path.replace(".csv", "_{}.csv".format(i)))
-    m = np.zeros((count, count))
-    for algo in [results[0].algo.unique()[1]]:
+        n[i][0] = results[i][(results[i].algo == "FSD") & (results[i].t == 0.7)].f1.max()
+
+    for algo in ["louvain_macro_tfidf", "louvain_macro_tfidf tweets only"]:
         params = []
         for i in range(count):
             res = results[i][(results[i].algo == algo) & (results[i].similarity == 0.3)]
             m[i][i] = res.f1.max()
             p = res[res.f1 == m[i][i]].sort_values("days").iloc[0]
-
             params.append("\n".join([
                 label + ":" + str(p[k]) for label, k in zip(
                     ["txt", "url", "htag", "days"],
                     ["weights_text", "weights_url", "weights_hashtag", "days"]
                 )]))
-            print(p["similarity"])
-            print(p["t"])
             for j in range(count):
                 if i != j:
                     other_res = results[j][(results[j].algo == algo) & (results[j].similarity == 0.3)]
@@ -42,9 +41,14 @@ def visualize(path, count):
 
         ax = sns.heatmap(m, linewidth=0.5, annot=True, vmax=0.92, vmin=0.7, cmap="Blues",
                          xticklabels=params, yticklabels=time)
-        # ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
 
         plt.savefig("/".join(path.split("/")[0:-1]) + "/figures/{}".format(algo), bbox_inches='tight')
+        plt.show()
+        plt.clf()
+
+    ax = sns.heatmap(n, linewidth=0.5,annot=True, vmax=0.92, vmin=0.7, cmap="Blues")
+
+    plt.show()
 
 
 if __name__ == '__main__':
