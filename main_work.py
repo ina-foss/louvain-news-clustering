@@ -1,5 +1,5 @@
 from twembeddings import build_matrix
-from twembeddings import ClusteringAlgo, ClusteringAlgoSparse
+from twembeddings import ClusteringAlgoSparse
 from twembeddings import general_statistics, cluster_event_match
 from twembeddings.eval import cluster_acc
 import logging
@@ -8,7 +8,6 @@ import pandas as pd
 import re
 import igraph as ig
 import louvain
-import itertools
 import csv
 from scipy import sparse
 import numpy as np
@@ -38,6 +37,7 @@ def zero_one_scale(serie):
     data_range = serie.max()
     scale = 1 / _handle_zeros_in_scale(data_range)
     serie *= scale
+
 
 def compute_events(tweets_path, news_path, lang, binary, threshold_tweets, binary_news=False, threshold_news=0.7):
 
@@ -253,8 +253,6 @@ def percent_linked(data):
     n_linked_tweets = tweets[tweets.pred.isin(common)].shape[0]
     n_linked_news = news[news.pred.isin(common)].shape[0]
     return n_linked_tweets/tweets.shape[0], n_linked_news/news.shape[0]
-
-
 
 
 def evaluate(y_pred, data, params, path, note):
