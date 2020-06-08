@@ -194,9 +194,22 @@ def louvain_macro_tfidf(tweets_path, news_path, lang, similarity, weights, binar
         partition = louvain.find_partition(g, getattr(louvain, model))
     else:
         partition = louvain.find_partition(g, getattr(louvain, model), weights="weight")
-    max_pred = int(data.pred.max())
+    max_pred = int(data.pred.max()) + 1
+    clusters = {}
+    preds = []
+
     for cluster in range(len(partition)):
-        data.loc[data.pred.isin(g.vs.select(partition[cluster])["name"]), "pred"] = cluster + max_pred
+        for doc in g.vs.select(partition[cluster])["name"]:
+            clusters[doc] = cluster + max_pred
+
+    logging.info("preds")
+    for i, line in data.iterrows():
+        if line["pred"] in clusters:
+            preds.append(clusters[line["pred"]])
+        else:
+            preds.append(line["pred"])
+    # for cluster in range(len(partition)):
+    #     data.loc[data.pred.isin(g.vs.select(partition[cluster])["name"]), "pred"] = cluster + max_pred
     params = {"t": threshold_tweets,
               "dataset": tweets_path + " " + news_path, "algo": "louvain_macro_tfidf", "lang": lang,
               "similarity": similarity, "weights_text": weights["text"], "weights_hashtag": weights["hashtag"],
@@ -205,7 +218,8 @@ def louvain_macro_tfidf(tweets_path, news_path, lang, similarity, weights, binar
     # logging.info("nb pred: {}".format(data.pred.nunique()))
     # logging.info("save to /usr/src/app/data/3_months_joint_events.csv")
     # data[["id", "pred"]].to_csv("/usr/src/app/data/3_months_joint_events.csv", quoting=csv.QUOTE_MINIMAL, index=False)
-    return data.pred.tolist(), data, params
+    data["pred"] = preds
+    return preds, data, params
 
 
 def fsd(corpus, lang, threshold, binary):
