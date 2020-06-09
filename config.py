@@ -17,3 +17,4 @@ WEIGHTS = [
     {"hashtag": 0.1, "text": 0.6, "url": 0.3},
     {"hashtag": 0.2, "text": 0.6, "url": 0.2}
 ]
+WINDOW_DAYS=1

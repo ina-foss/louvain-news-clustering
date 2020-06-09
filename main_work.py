@@ -15,7 +15,7 @@ import numpy as np
 from sklearn.preprocessing import normalize
 from sklearn.preprocessing.data import _handle_zeros_in_scale
 from datetime import datetime, timedelta
-from config import PATH, DATASET, THRESHOLDS, SIMILARITIES, DAYS, WEIGHTS
+from config import PATH, DATASET, THRESHOLDS, SIMILARITIES, DAYS, WEIGHTS, WINDOW_DAYS
 
 logging.basicConfig(filename='/usr/src/app/app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
 
@@ -50,13 +50,15 @@ def compute_events(tweets_path, news_path, lang, binary, threshold_tweets, binar
         raise Exception("tweets.id.min() should be greater than news.id.max()")
 
     if "pred" not in news.columns:
-        news_pred, news, _, X_tweets = fsd(news_path, lang, threshold=threshold_news, binary=binary_news)
+        news_pred, news, _, X_tweets = fsd(news_path, lang, threshold=threshold_news, binary=binary_news,
+                                           window_days=WINDOW_DAYS)
         news["pred"] = news_pred
         news.id = news.id.astype(int)
     else:
         news["pred"] = news["pred"].fillna(news["id"]).astype(int)
     if "pred" not in tweets.columns:
-        tweets_pred, tweets, _, X_news = fsd(tweets_path, lang, threshold=threshold_tweets, binary=binary)
+        tweets_pred, tweets, _, X_news = fsd(tweets_path, lang, threshold=threshold_tweets, binary=binary,
+                                             window_days=WINDOW_DAYS)
         tweets["pred"] = tweets_pred
         tweets.id = tweets.id.astype(int)
         # tweets.loc[(tweets.pred == -1) | (tweets.pred == -2), "pred"] = tweets["id"]
@@ -225,7 +227,7 @@ def louvain_macro_tfidf(tweets_path, news_path, lang, similarity, weights, binar
     params = {"t": threshold_tweets,
               "dataset": tweets_path + " " + news_path, "algo": "louvain_macro_tfidf", "lang": lang,
               "similarity": similarity, "weights_text": weights["text"], "weights_hashtag": weights["hashtag"],
-              "weights_url": weights["url"], "binary": binary, "model": model, "days": days,
+              "weights_url": weights["url"], "binary": binary, "model": model, "days": days, "window_days": WINDOW_DAYS,
               "ts": datetime.now().strftime("%d-%m-%Y %H:%M:%S")}
     # logging.info("nb pred: {}".format(data.pred.nunique()))
     # logging.info("save to /usr/src/app/data/3_months_joint_events.csv")
@@ -301,7 +303,7 @@ def evaluate(y_pred, data, params, path, note):
     stats = results.append(stats, ignore_index=True)
     stats[["f1", "p", "r", "similarity", "days", "weights_text", "weights_hashtag", "weights_url", "note",
            "linked_tweets",
-           "linked_news", "algo", "t", "model", "ts",
+           "linked_news", "algo", "t", "window_days", "model", "ts",
            "binary", "count", "max", "min", "mean", "50%"]].round(5).to_csv(path, index=False)
     logging.info("Saved results to {}".format(path))
 
