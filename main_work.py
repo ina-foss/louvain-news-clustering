@@ -8,7 +8,6 @@ import pandas as pd
 import re
 import igraph as ig
 import louvain
-import leidenalg
 import csv
 from scipy import sparse
 import numpy as np
@@ -42,21 +41,23 @@ def zero_one_scale(serie):
 
 def compute_events(tweets_path, news_path, lang, binary, threshold_tweets, binary_news=False, threshold_news=0.7):
 
-    news = pd.read_csv(news_path, sep="\t", quoting=csv.QUOTE_ALL, dtype={"id": str, "label": float,
+    news = pd.read_csv(news_path, sep="\t", quoting=csv.QUOTE_ALL, dtype={"id": int, "label": float,
                                                                           "created_at": str, "text": str, "url": str})
-    tweets = pd.read_csv(tweets_path, sep="\t", quoting=csv.QUOTE_ALL, dtype={"id": str, "label": float,
+    tweets = pd.read_csv(tweets_path, sep="\t", quoting=csv.QUOTE_ALL, dtype={"id": int, "label": float,
                                                                           "created_at": str, "text": str, "url": str})
-    if set(tweets["id"].unique()).intersection(set(news["id"].unique())):
-        raise Exception("There are common ids in tweets and news")
+    if tweets.id.min() <= news.id.max():
+        raise Exception("tweets.id.min() should be greater than news.id.max()")
 
     if "pred" not in news.columns:
         news_pred, news, _, X_tweets = fsd(news_path, lang, threshold=threshold_news, binary=binary_news)
         news["pred"] = news_pred
+        news.id = news.id.astype(int)
     else:
         news["pred"] = news["pred"].fillna(news["id"]).astype(int)
     if "pred" not in tweets.columns:
         tweets_pred, tweets, _, X_news = fsd(tweets_path, lang, threshold=threshold_tweets, binary=binary)
         tweets["pred"] = tweets_pred
+        tweets.id = tweets.id.astype(int)
         # tweets.loc[(tweets.pred == -1) | (tweets.pred == -2), "pred"] = tweets["id"]
 
     if tweets.pred.min() <= news.pred.max():
@@ -82,7 +83,6 @@ def louvain_macro_tfidf(tweets_path, news_path, lang, similarity, weights, binar
     :param bool binary_news: if True, all non-zero term counts are set to 1 in tf calculation for news
     :return: y_pred, data, params
     """
-    # optimiser = louvain.Optimiser()
     tweets, news = compute_events(tweets_path, news_path, lang, binary, threshold_tweets)
     data = pd.concat([tweets, news], ignore_index=True, sort=False)
     logging.info("save data")
@@ -160,10 +160,14 @@ def louvain_macro_tfidf(tweets_path, news_path, lang, similarity, weights, binar
         if weights["hashtag"] != 0:
             hashtags_tweets = batch_tweets.explode("hashtag")
             hashtags_news = batch_news.explode("hashtag")
+            # hashtags_tweets = hashtags_tweets.drop_duplicates(["pred", "hashtag"])
+            # hashtags_news = hashtags_news.drop_duplicates(["pred", "hashtag"])
             hashtags_tweets = hashtags_tweets.groupby(["pred", "hashtag"]).size().reset_index(name="weight")
             hashtags_news = hashtags_news.groupby(["pred", "hashtag"]).size().reset_index(name="weight")
             batch = hashtags_tweets.merge(hashtags_news, on="hashtag", how='inner', suffixes=("_tweets", "_news"))
+            # batch["weight"] = batch["weight_tweets"] + batch["weight_news"]
             batch = batch.groupby(["pred_tweets", "pred_news"])["weight_tweets"].agg(['sum', 'size']).reset_index()
+            # batch = batch.groupby(["pred_tweets", "pred_news"]).size().reset_index(name="weight")
             batch = batch[batch["size"] > 3]
             edges_hashtags.extend(batch[["pred_tweets", "pred_news", "sum"]].values.tolist())
         if weights["url"] != 0:
@@ -190,11 +194,8 @@ def louvain_macro_tfidf(tweets_path, news_path, lang, similarity, weights, binar
         ["pred_tweets", "pred_news"])["weight"].sum().sort_values()
     g = ig.Graph.TupleList([(i[0], i[1], row) for i, row in edges.iteritems()],
                            weights=True)
-
-    if model == "SignificanceVertexPartition":
-        partition = louvain.find_partition(g, getattr(louvain, model))
-    else:
-        partition = louvain.find_partition(g, getattr(louvain, model), weights="weight")
+    logging.info("build partition")
+    partition = louvain.find_partition(g, getattr(louvain, model), weights="weight")
     for cluster in range(len(partition)):
         data.loc[data.pred.isin(g.vs.select(partition[cluster])["name"]), "pred"] = cluster
     params = {"t": threshold_tweets,
@@ -209,7 +210,7 @@ def louvain_macro_tfidf(tweets_path, news_path, lang, similarity, weights, binar
 
 
 def fsd(corpus, lang, threshold, binary):
-    args = {"dataset": corpus, "model": "tfidf_all_tweets", "annotation": "no", "hashtag_split": True,
+    args = {"dataset": corpus, "model": "tfidf_all_tweets", "annotation": "annotated", "hashtag_split": True,
           "lang": lang, "text+": False, "svd": False, "tfidf_weights": False, "save":False, "binary": binary}
     X, data = build_matrix(**args)
     batch_size = 8
@@ -225,7 +226,7 @@ def fsd(corpus, lang, threshold, binary):
 
 
 def DBSCAN(corpus, lang, min_samples, eps, binary):
-    args = {"dataset": corpus, "model": "tfidf_all_tweets", "annotation": "no", "hashtag_split": True,
+    args = {"dataset": corpus, "model": "tfidf_all_tweets", "annotation": "annotated", "hashtag_split": True,
             "lang": lang, "text+": False, "svd": False, "tfidf_weights": False, "save": True, "binary": binary}
     X, data = build_matrix(**args)
     logging.info("starting DBSCAN...")
@@ -293,14 +294,26 @@ if __name__ == '__main__':
     tweets_dataset = "{}data/{}_tweets.tsv".format(args["path"], args["dataset"])
 
     binary = False
-    for t in [0.7]:
-        for sim in [0.3]:
+    for t in [0.6, 0.7]:
+        for sim in [0.3, 0.4, 0.5, 0.6, 0.7]:
             for days in [1, 2, 3, 4, 5]:
                 for w in [
+
                     {"hashtag": 0, "text": 1, "url": 0},
+                    {"hashtag": 1, "text": 0, "url": 0},
+                    {"hashtag": 0, "text": 0, "url": 1},
+                    {"hashtag": 0, "text": 0.9, "url": 0.1},
+                    {"hashtag": 0, "text": 0.8, "url": 0.2},
+                    {"hashtag": 0.1, "text": 0.8, "url": 0.1},
+                    {"hashtag": 0.2, "text": 0.8, "url": 0},
+                    {"hashtag": 0, "text": 0.7, "url": 0.3},
+                    {"hashtag": 0.1, "text": 0.7, "url": 0.2},
+                    {"hashtag": 0, "text": 0.6, "url": 0.4},
+                    {"hashtag": 0.1, "text": 0.6, "url": 0.3},
+                    {"hashtag": 0.2, "text": 0.6, "url": 0.2}
                 ]:
 
-                    y_pred, data, params = louvain_macro_tfidf(tweets_dataset,news_dataset, "en",similarity=sim, weights=w,
+                    y_pred, data, params = louvain_macro_tfidf(tweets_dataset,news_dataset,"fr",similarity=sim, weights=w,
                                                                        binary=binary,threshold_tweets=t, model=model, days=days)
 
                     evaluate(y_pred, data, params, save_results_to, note)
