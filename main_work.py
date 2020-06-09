@@ -207,8 +207,9 @@ def louvain_macro_tfidf(tweets_path, news_path, lang, similarity, weights, binar
                            weights=True)
     logging.info("build partition")
     partition = louvain.find_partition(g, getattr(louvain, model), weights="weight")
+    max_pred = int(data.pred.max()) + 1
     for cluster in range(len(partition)):
-        data.loc[data.pred.isin(g.vs.select(partition[cluster])["name"]), "pred"] = cluster
+        data.loc[data.pred.isin(g.vs.select(partition[cluster])["name"]), "pred"] = cluster + max_pred
     params = {"t": threshold_tweets,
               "dataset": tweets_path + " " + news_path, "algo": "louvain_macro_tfidf", "lang": lang,
               "similarity": similarity, "weights_text": weights["text"], "weights_hashtag": weights["hashtag"],
