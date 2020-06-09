@@ -1,4 +1,5 @@
-from twembeddings import build_matrix
+from twembeddings.build_features_matrix import format_text, find_date_created_at, build_matrix
+from twembeddings.embeddings import TfIdf
 from twembeddings import ClusteringAlgoSparse
 from twembeddings import general_statistics, cluster_event_match
 from twembeddings.eval import cluster_acc
@@ -91,8 +92,18 @@ def louvain_macro_tfidf(tweets_path, news_path, lang, similarity, weights, binar
     data.to_csv(path, sep="\t", index=False, quoting=csv.QUOTE_ALL)
     args = {"dataset": path, "model": "tfidf_all_tweets", "annotation": "no", "hashtag_split": True,
             "lang": lang, "text+": False, "svd": False, "tfidf_weights": False, "save": False, "binary": False}
+    data["date"] = data["created_at"].apply(find_date_created_at)
     logging.info("build matrix")
-    X, data = build_matrix(**args)
+    vectorizer = TfIdf(lang=args["lang"], binary=args["binary"])
+    vectorizer.load_history(args["lang"])
+    data.text = data.text.apply(format_text,
+                                remove_mentions=True,
+                                unidecode=True,
+                                lower=True,
+                                hashtag_split=args["hashtag_split"]
+                                )
+    count_matrix = vectorizer.add_new_samples(data)
+    X = vectorizer.compute_vectors(count_matrix, min_df=10, svd=args["svd"], n_components=100)
     data["hashtag"] = data.hashtag.str.split("|")
     data["url"] = data.url.str.split("|")
     # logging.info("save data")
