@@ -15,7 +15,7 @@ import numpy as np
 from sklearn.preprocessing import normalize
 from sklearn.preprocessing.data import _handle_zeros_in_scale
 from datetime import datetime, timedelta
-import argparse
+from config import PATH, DATASET, THRESHOLDS, SIMILARITIES, DAYS, WEIGHTS
 
 logging.basicConfig(filename='/usr/src/app/app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
 
@@ -234,12 +234,12 @@ def louvain_macro_tfidf(tweets_path, news_path, lang, similarity, weights, binar
     return preds, data, params
 
 
-def fsd(corpus, lang, threshold, binary):
+def fsd(corpus, lang, threshold, binary, window_days=1):
     args = {"dataset": corpus, "model": "tfidf_all_tweets", "annotation": "annotated", "hashtag_split": True,
           "lang": lang, "text+": False, "svd": False, "tfidf_weights": False, "save":False, "binary": binary}
     X, data = build_matrix(**args)
     batch_size = 8
-    window = int(data.groupby("date").size().mean() // batch_size * batch_size)
+    window = int(data.groupby("date").size().mean() // batch_size * batch_size)*window_days
     clustering = ClusteringAlgoSparse(threshold=float(threshold), window_size=window,
                                       batch_size=batch_size, intel_mkl=False)
     clustering.add_vectors(X)
@@ -307,36 +307,18 @@ def evaluate(y_pred, data, params, path, note):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('--dataset', required=False, default="event2018")
-    parser.add_argument('--path', required=False, default="")
-    args = vars(parser.parse_args())
 
-    save_results_to = "{}results_{}.csv".format(args["path"], args["dataset"])
+    save_results_to = "{}results_{}.csv".format(PATH, DATASET)
     model = "SurpriseVertexPartition"
     note = ""
-    news_dataset = "{}data/{}_news.tsv".format(args["path"], args["dataset"])
-    tweets_dataset = "{}data/{}_tweets.tsv".format(args["path"], args["dataset"])
+    news_dataset = "{}data/{}_news.tsv".format(PATH, DATASET)
+    tweets_dataset = "{}data/{}_tweets.tsv".format(PATH, DATASET)
 
     binary = False
-    for t in [0.6, 0.7]:
-        for sim in [0.3, 0.4, 0.5, 0.6, 0.7]:
-            for days in [1, 2, 3, 4, 5]:
-                for w in [
-
-                    {"hashtag": 0, "text": 1, "url": 0},
-                    {"hashtag": 1, "text": 0, "url": 0},
-                    {"hashtag": 0, "text": 0, "url": 1},
-                    {"hashtag": 0, "text": 0.9, "url": 0.1},
-                    {"hashtag": 0, "text": 0.8, "url": 0.2},
-                    {"hashtag": 0.1, "text": 0.8, "url": 0.1},
-                    {"hashtag": 0.2, "text": 0.8, "url": 0},
-                    {"hashtag": 0, "text": 0.7, "url": 0.3},
-                    {"hashtag": 0.1, "text": 0.7, "url": 0.2},
-                    {"hashtag": 0, "text": 0.6, "url": 0.4},
-                    {"hashtag": 0.1, "text": 0.6, "url": 0.3},
-                    {"hashtag": 0.2, "text": 0.6, "url": 0.2}
-                ]:
+    for t in THRESHOLDS:
+        for sim in SIMILARITIES:
+            for days in DAYS:
+                for w in WEIGHTS:
 
                     y_pred, data, params = louvain_macro_tfidf(tweets_dataset,news_dataset,"fr",similarity=sim, weights=w,
                                                                        binary=binary,threshold_tweets=t, model=model, days=days)
