@@ -6,6 +6,7 @@ from twembeddings.eval import cluster_acc
 import logging
 import sklearn.cluster
 import pandas as pd
+import os
 import re
 import igraph as ig
 import louvain
@@ -15,7 +16,8 @@ import numpy as np
 from sklearn.preprocessing import normalize
 from sklearn.preprocessing.data import _handle_zeros_in_scale
 from datetime import datetime, timedelta
-from config import PATH, DATASET, THRESHOLDS, SIMILARITIES, DAYS, WEIGHTS, WINDOW_DAYS
+from config import PATH, DATASET, THRESHOLDS, SIMILARITIES, DAYS, WEIGHTS, WINDOW_DAYS, \
+    WRITE_CLUSTERS_TEXT, WRITE_CLUSTERS_SMALL_IDS
 
 logging.basicConfig(filename='/usr/src/app/app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
 
@@ -88,10 +90,10 @@ def louvain_macro_tfidf(tweets_path, news_path, lang, similarity, weights, binar
     """
     tweets, news = compute_events(tweets_path, news_path, lang, binary, threshold_tweets)
     data = pd.concat([tweets, news], ignore_index=True, sort=False)
-    logging.info("save data")
+    # logging.info("save data")
     local_path = tweets_path.split("data/")[0]
     path = local_path + "data/" + (tweets_path + "_" + news_path).replace(local_path + "data/", "")
-    data.to_csv(path, sep="\t", index=False, quoting=csv.QUOTE_ALL)
+    # data.to_csv(path, sep="\t", index=False, quoting=csv.QUOTE_ALL)
     args = {"dataset": path, "model": "tfidf_all_tweets", "annotation": "no", "hashtag_split": True,
             "lang": lang, "text+": False, "svd": False, "tfidf_weights": False, "save": False, "binary": False}
     data["date"] = data["created_at"].apply(find_date_created_at)
@@ -106,8 +108,10 @@ def louvain_macro_tfidf(tweets_path, news_path, lang, similarity, weights, binar
                                 )
     count_matrix = vectorizer.add_new_samples(data)
     X = vectorizer.compute_vectors(count_matrix, min_df=10, svd=args["svd"], n_components=100)
-    data["hashtag"] = data.hashtag.str.split("|")
-    data["url"] = data.url.str.split("|")
+    if weights["hashtag"] != 0:
+        data["hashtag"] = data.hashtag.str.split("|")
+    if weights["url"] != 0:
+        data["url"] = data.url.str.split("|")
     # logging.info("save data")
     # data.to_csv(path, sep="\t", index=False, quoting=csv.QUOTE_ALL)
     # data = pd.read_csv(path, sep="\t", quoting=csv.QUOTE_ALL, dtype={"date": str})
@@ -116,12 +120,15 @@ def louvain_macro_tfidf(tweets_path, news_path, lang, similarity, weights, binar
     # sparse.save_npz("/usr/src/app/data/X.npz", X)
     data = data.sort_values("pred").reset_index(drop=True)
     gb = data.groupby(["pred", "type"])
-    macro = gb.agg({
-        'date': ['min', 'max', 'size'],
-        'hashtag': lambda tdf: tdf.explode().tolist(),
-        'url': lambda tdf: tdf.explode().tolist()
-    })
-    macro.columns = ["mindate", "maxdate", "size", "hashtag", "url"]
+    if weights["url"] != 0 or weights["hashtag"] != 0:
+        macro = gb.agg({
+            'date': ['min', 'max', 'size'],
+            'hashtag': lambda tdf: tdf.explode().tolist(),
+            'url': lambda tdf: tdf.explode().tolist()
+        })
+        macro.columns = ["mindate", "maxdate", "size", "hashtag", "url"]
+    else:
+        macro = gb["date"].agg(mindate=np.min, maxdate=np.max, size=np.size)
     macro = macro.reset_index().sort_values("pred")
     macro_tweets = macro[macro.type == "tweets"]
     macro_news = macro[macro.type == "news"]
@@ -150,7 +157,8 @@ def louvain_macro_tfidf(tweets_path, news_path, lang, similarity, weights, binar
     min_max = macro_tweets[["mindate", "maxdate"]].drop_duplicates().reset_index(drop=True)
     total = min_max.shape[0]
     for iter, row in min_max.iterrows():
-        logging.info(iter/total)
+        if iter % 10 == 0:
+            logging.info(iter/total)
         batch_min = (datetime.strptime(row["mindate"], "%Y%m%d") - timedelta(days=days)).strftime("%Y%m%d")
         batch_max = (datetime.strptime(row["maxdate"], "%Y%m%d") + timedelta(days=days)).strftime("%Y%m%d")
 
@@ -282,6 +290,27 @@ def percent_linked(data):
     return n_linked_tweets/tweets.shape[0], n_linked_news/news.shape[0]
 
 
+def write_ids(path, dataset, table, days, full, small):
+    if full:
+        outpath = os.path.join(path, "data", "{}_joint_events_{}_days.csv".format(dataset, days))
+        logging.info("write preds to {}".format(outpath))
+        table[["id", "pred", "type", "text"]].to_csv(outpath, index=False, quoting=csv.QUOTE_MINIMAL)
+
+    if small:
+        logging.info("load id mapping")
+        with open(os.path.join(PATH, "data", "id_str_mapping.csv"), "r") as f:
+            reader = csv.reader(f, quoting=csv.QUOTE_NONE)
+            id_dict = {int(row[0]): int(row[1]) for row in reader}
+        logging.info("convert to small ids")
+        mask = (table["type"] == "tweets")
+        table['doc_id_small'] = table["id"]
+        table.loc[mask, "doc_id_small"] = table[mask]["id"].apply(lambda x: id_dict[int(x)])
+        table["is_tweet"] = mask
+        outpath = os.path.join(path, "data", "{}_joint_events_{}_days_small_ids.csv".format(dataset, days))
+        logging.info("write preds to {}".format(outpath))
+        table[["id", "doc_id_small", "pred", "is_tweet"]].to_csv(outpath, index=False, quoting=csv.QUOTE_MINIMAL)
+
+
 def evaluate(y_pred, data, params, path, note):
     stats = general_statistics(y_pred)
     p, r, f1 = cluster_event_match(data, y_pred)
@@ -324,7 +353,8 @@ if __name__ == '__main__':
 
                     y_pred, data, params = louvain_macro_tfidf(tweets_dataset,news_dataset,"fr",similarity=sim, weights=w,
                                                                        binary=binary,threshold_tweets=t, model=model, days=days)
-
+                    if WRITE_CLUSTERS_TEXT or WRITE_CLUSTERS_SMALL_IDS:
+                        write_ids(PATH, DATASET, data, days, WRITE_CLUSTERS_TEXT, WRITE_CLUSTERS_SMALL_IDS)
                     evaluate(y_pred, data, params, save_results_to, note)
                     tweets_data = data[data.type == "tweets"].reset_index(drop=True)
                     tweets_y_pred = tweets_data.pred.tolist()
