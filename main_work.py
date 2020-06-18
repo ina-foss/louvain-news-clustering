@@ -16,8 +16,9 @@ import numpy as np
 from sklearn.preprocessing import normalize
 from sklearn.preprocessing.data import _handle_zeros_in_scale
 from datetime import datetime, timedelta
+import argparse
 from config import PATH, DATASET, THRESHOLDS, SIMILARITIES, DAYS, WEIGHTS, WINDOW_DAYS, \
-    WRITE_CLUSTERS_TEXT, WRITE_CLUSTERS_SMALL_IDS
+    QUALITY_FUNCTION, WRITE_CLUSTERS_TEXT, WRITE_CLUSTERS_SMALL_IDS
 
 logging.basicConfig(filename='/usr/src/app/app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
 
@@ -298,7 +299,7 @@ def write_ids(path, dataset, table, days, full, small):
 
     if small:
         logging.info("load id mapping")
-        with open(os.path.join(PATH, "data", "id_str_mapping.csv"), "r") as f:
+        with open(os.path.join(path, "data", "id_str_mapping.csv"), "r") as f:
             reader = csv.reader(f, quoting=csv.QUOTE_NONE)
             id_dict = {int(row[0]): int(row[1]) for row in reader}
         logging.info("convert to small ids")
@@ -338,12 +339,17 @@ def evaluate(y_pred, data, params, path, note):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('--dataset', required=False, default=DATASET)
+    parser.add_argument('--path', required=False, default=PATH)
+    args = vars(parser.parse_args())
 
-    save_results_to = "{}results_{}.csv".format(PATH, DATASET)
-    model = "SurpriseVertexPartition"
-    note = ""
-    news_dataset = "{}data/{}_news.tsv".format(PATH, DATASET)
-    tweets_dataset = "{}data/{}_tweets.tsv".format(PATH, DATASET)
+
+    save_results_to = "{}results_{}.csv".format(args["path"], args["dataset"])
+    model = QUALITY_FUNCTION
+    note = "should be baseline"
+    news_dataset = "{}data/{}_news.tsv".format(args["path"], args["dataset"])
+    tweets_dataset = "{}data/{}_tweets.tsv".format(args["path"], args["dataset"])
 
     binary = False
     for t in THRESHOLDS:
@@ -354,7 +360,7 @@ if __name__ == '__main__':
                     y_pred, data, params = louvain_macro_tfidf(tweets_dataset,news_dataset,"fr",similarity=sim, weights=w,
                                                                        binary=binary,threshold_tweets=t, model=model, days=days)
                     if WRITE_CLUSTERS_TEXT or WRITE_CLUSTERS_SMALL_IDS:
-                        write_ids(PATH, DATASET, data, days, WRITE_CLUSTERS_TEXT, WRITE_CLUSTERS_SMALL_IDS)
+                        write_ids(args["path"], args["dataset"], data, days, WRITE_CLUSTERS_TEXT, WRITE_CLUSTERS_SMALL_IDS)
                     evaluate(y_pred, data, params, save_results_to, note)
                     tweets_data = data[data.type == "tweets"].reset_index(drop=True)
                     tweets_y_pred = tweets_data.pred.tolist()
