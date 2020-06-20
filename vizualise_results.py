@@ -75,7 +75,7 @@ def visualize(path, count):
     sns.heatmap(matrix_text_only, annot=True, vmax=tot_max, vmin=matrix_fsd.min(),
                 cmap="Blues",
                 xticklabels=params_text_only, yticklabels=False, square=True, fmt='.3f', ax=ax3)
-    plt.savefig("/".join(path.split("/")[0:-1]) + "/figures/{}".format(algo), bbox_inches='tight', transparent=True)
+    plt.savefig("/".join(path.split("/")[0:-1]) + "/figures/{}".format(algo.replace(" ", "_")), bbox_inches='tight', transparent=True)
     plt.show()
 
 
