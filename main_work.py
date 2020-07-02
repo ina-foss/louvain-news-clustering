@@ -37,7 +37,7 @@ def find_hashtag(text):
       return hashtags
 
 
-def zero_one_scale(serie):
+def  zero_one_scale(serie):
     data_range = serie.max()
     scale = 1 / _handle_zeros_in_scale(data_range)
     serie *= scale
@@ -165,7 +165,9 @@ def louvain_macro_tfidf(tweets_path, news_path, lang, similarity, weights, binar
 
         bool_tweets = (macro_tweets.mindate == row["mindate"]) & (macro_tweets.maxdate == row["maxdate"])
         bool_news = ((batch_min <= macro_news.maxdate) & (macro_news.maxdate <= batch_max)) | (
-                (batch_min <= macro_news.maxdate) & (macro_news.maxdate <= batch_max))
+            (batch_min <= macro_news.mindate) & (macro_news.mindate <= batch_max)) | (
+            (row["mindate"] >= macro_news.mindate) & (row["maxdate"] <= macro_news.maxdate))
+
 
         batch_tweets = macro_tweets[bool_tweets]
         batch_news = macro_news[bool_news]
@@ -325,16 +327,13 @@ def evaluate(y_pred, data, params, path, note):
         params.pop("linked_news")
     stats.update(params)
     stats = pd.DataFrame(stats, index=[0])
-    logging.info("\n"+ str(stats[["f1", "p", "r", "t", "similarity", "days"]]))
+    logging.info("\n"+ str(stats[["f1", "p", "r", "t"]]))
     try:
         results = pd.read_csv(path)
     except FileNotFoundError:
         results = pd.DataFrame()
     stats = results.append(stats, ignore_index=True)
-    stats[["f1", "p", "r", "similarity", "days", "weights_text", "weights_hashtag", "weights_url", "note",
-           "linked_tweets",
-           "linked_news", "algo", "t", "window_days", "model", "ts",
-           "binary", "count", "max", "min", "mean", "50%"]].round(5).to_csv(path, index=False)
+    stats.round(5).to_csv(path, index=False)
     logging.info("Saved results to {}".format(path))
 
 
@@ -347,7 +346,7 @@ if __name__ == '__main__':
 
     save_results_to = "{}results_{}.csv".format(args["path"], args["dataset"])
     model = QUALITY_FUNCTION
-    note = "should be baseline"
+    note = ""
     news_dataset = "{}data/{}_news.tsv".format(args["path"], args["dataset"])
     tweets_dataset = "{}data/{}_tweets.tsv".format(args["path"], args["dataset"])
 
@@ -356,7 +355,18 @@ if __name__ == '__main__':
         for sim in SIMILARITIES:
             for days in DAYS:
                 for w in WEIGHTS:
-
+                    # total_tweets, total_news = compute_events(tweets_dataset, news_dataset, "fr", True, t)
+                    # total = pd.concat([total_tweets, total_news], ignore_index=True, sort=False)
+                    # local_path = tweets_dataset.split("data/")[0]
+                    # path = local_path + "data/" + (tweets_dataset + "_" + news_dataset).replace(local_path + "data/", "")
+                    # total.to_csv(path, sep="\t", index=False, quoting=csv.QUOTE_ALL)
+                    # y_pred, data, params, _ = fsd(path, "fr", t, True)
+                    # evaluate(y_pred, data, params, save_results_to, note)
+                    # tweets_data = data[data.type == "tweets"].reset_index(drop=True)
+                    # tweets_y_pred = tweets_data.pred.tolist()
+                    # params["algo"] = params["algo"] + " tweets only"
+                    # evaluate(tweets_y_pred, tweets_data, params, save_results_to, note)
+                    #
                     y_pred, data, params = louvain_macro_tfidf(tweets_dataset,news_dataset,"fr",similarity=sim, weights=w,
                                                                        binary=binary,threshold_tweets=t, model=model, days=days)
                     if WRITE_CLUSTERS_TEXT or WRITE_CLUSTERS_SMALL_IDS:
@@ -366,3 +376,6 @@ if __name__ == '__main__':
                     tweets_y_pred = tweets_data.pred.tolist()
                     params["algo"] = params["algo"] + " tweets only"
                     evaluate(tweets_y_pred, tweets_data, params, save_results_to, note)
+
+                    # evaluate(y_pred, data, params, save_results_to, note)
+
